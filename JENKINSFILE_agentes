@@ -8,6 +8,7 @@ pipeline {
                 // Obtener código del repo
                 git 'https://github.com/rokitocri/CP1_A.git'
                 stash includes: '*', name: 'repositorio'
+                stash includes: '*', name: 'repositorio2'
 
             }
         }
@@ -21,57 +22,64 @@ pipeline {
             }
         }
 
-        stage('Unit') {
-                   agent {label 'agente1'}
-
-                    steps {
-                        unstash 'repositorio'
-                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                            bat '''
-                                set PYTHONPATH=%WORKSPACE%
-                                "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-unit.xml test\\unit
-                            '''
-                           stash includes: 'result-unit.xml', name: 'resultado1'
-                           
-                    
-                            
-                        }
-                    }
-                }
-        
-        stage('Rest') {
-                agent {label 'agente1'}
-
-                        steps {
-                                unstash 'repositorio'
-                                // Iniciar Flask en segundo plano
-                                    bat '''
-                                        set FLASK_APP=app\\api.py
-                                        set FLASK_ENV=development
-                                        start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
-                                    '''
-                            
-                                    // Iniciar WireMock en otro comando
-                                    bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
-                                
-                                
-                                // Esperar un tiempo para permitir que Flask y WireMock se inicien
-                                bat 'ping 127.0.0.1 -n 11 > nul' // Espera aproximadamente 10 segundos
-                                
-                                // Ejecutar pruebas de REST una vez que los servicios estén activos
-                                bat '''
-                                    echo %WORKSPACE%
-                                    set PYTHONPATH=%WORKSPACE%
-                                    dir
-                                    "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
-                                '''
-                                stash includes: 'result-rest.xml', name: 'resultado2'
-
-                            }
-                        }
-                        
+            stage('test') {
+                
             
-        
+                parallel {
+                    
+                
+                    stage('Unit') {
+                               agent {label 'agente1'}
+            
+                                steps {
+                                        unstash 'repositorio'
+                                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                                        bat '''
+                                            set PYTHONPATH=%WORKSPACE%
+                                            "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-unit.xml test\\unit
+                                        '''
+                                       stash includes: 'result-unit.xml', name: 'resultado1'
+                                       
+                                
+                                        
+                                    }
+                                }
+                            }
+                    
+                    stage('Rest') {
+                            agent {label 'agente2'}
+            
+                                    steps {
+                                            unstash 'repositorio2'
+                                            // Iniciar Flask en segundo plano
+                                                bat '''
+                                                    set FLASK_APP=app\\api.py
+                                                    set FLASK_ENV=development
+                                                    start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
+                                                '''
+                                        
+                                                // Iniciar WireMock en otro comando
+                                                bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
+                                            
+                                            
+                                            // Esperar un tiempo para permitir que Flask y WireMock se inicien
+                                            bat 'ping 127.0.0.1 -n 11 > nul' // Espera aproximadamente 10 segundos
+                                            
+                                            // Ejecutar pruebas de REST una vez que los servicios estén activos
+                                         
+                                            bat '''
+                                                echo %WORKSPACE%
+                                                set PYTHONPATH=%WORKSPACE%
+                                                dir
+                                                "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
+                                            '''
+                                            stash includes: 'result-rest.xml', name: 'resultado2'
+            
+                                        }
+                                    }
+                }              
+            }
+                
             
         
         stage('Results') {
@@ -85,4 +93,3 @@ pipeline {
         }
     }
 }
-
