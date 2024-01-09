@@ -5,7 +5,7 @@ pipeline {
         stage('Get Code') {
             steps {
                 // Obtener código del repo
-                git 'https://github.com/rokitocri/CP1_A.git'
+                git 'https://github.com/rokitocri/CP1_B.git'
             }
         }
 
