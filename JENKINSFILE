@@ -1,4 +1,3 @@
-@ -0,0 +1,61 @@
 pipeline {
     agent any
 
@@ -10,52 +9,97 @@ pipeline {
             }
         }
 
-        
-        stage('Unit') {
+
+        stage('cobertura') {
             steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    bat '''
-                        set PYTHONPATH=%WORKSPACE%
-                        "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-unit.xml test\\unit
-                    '''
-                }
+                bat '''
+                coverage run --branch --source:=app --omit=app\\__init__.py,app\\api.py -m pytest test\\unit   
+                coverage xml
+                
+                '''
+                cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,85,90', lineCoverageTargets:'100,80,95', failUnstable: 'False'
+                
+                
             }
         }
+        
+        stage('Static'){
+            
+            steps {
+                
+                    bat '''
+                        "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flake8"  --exit-zero  --format=pylint app > flake8.out
+                    '''
+                    recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates : [[threshold: 25, type: 'TOTAL', unstable: true], [threshold: 30, type: 'TOTAL', unstable: false]]
+                }
+            }
+            
+        stage('security'){
+            steps {
+                bat '''
+                 "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\bandit" --exit-zero -r . -f custom -o bandit.out --severity-level medium --msg-template "{abspath}:{line}: [{test_id}, {severity}] {msg}"
+                 '''
+                recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true],[threshold: 3, type: 'TOTAL', unstable: false]]
 
-        stage('Rest') {
+            }
+        }    
+        
+        stage ('Perfomance') {
+            steps {
+               bat '''
+               set FLASK_APP=app\\api.py
+               set FLASK_ENV=development
+               start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
+               
+               "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
+               '''
+               perfReport sourceDataFiles: 'flask.jtl'
+            }
+        }
+        stage('Paralela') {
+            parallel {    
+                stage('Unit') {
                     steps {
-                        // Iniciar Flask en segundo plano
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             bat '''
-                                set FLASK_APP=app\\api2.py
-                                set FLASK_ENV=development
-                                start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
+                                set PYTHONPATH=%WORKSPACE%
+                                "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-unit.xml test\\unit
                             '''
-                    
-                            // Iniciar WireMock en otro comando
-                            bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
-                        
-                        
-                        // Esperar un tiempo para permitir que Flask y WireMock se inicien
-                        bat 'ping 127.0.0.1 -n 11 > nul' // Espera aproximadamente 10 segundos
-                        
-                        // Ejecutar pruebas de REST una vez que los servicios estén activos
-                        bat '''
-                            echo %WORKSPACE%
-                            set PYTHONPATH=%WORKSPACE%
-                            dir
-                            "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest2.xml test\\rest
-                        '''
+                            junit 'result*.xml'
+                        }
                     }
                 }
-                
-               
-            
         
-        stage('Results') {
-            steps {
-                junit 'result*.xml'
-                bat 'dir'
+                stage('Rest') {
+                            steps {
+                                // Iniciar Flask en segundo plano
+                                    bat '''
+                                        set FLASK_APP=app\\api.py
+                                        set FLASK_ENV=development
+                                         start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
+                                    '''
+                            
+                                    // Iniciar WireMock en otro comando
+                                    bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
+                                
+                                
+                                // Esperar un tiempo para permitir que Flask y WireMock se inicien
+                                bat 'ping 127.0.0.1 -n 11 > nul' // Espera aproximadamente 10 segundos
+                                
+                                // Ejecutar pruebas de REST una vez que los servicios estén activos
+                                bat '''
+                                    echo %WORKSPACE%
+                                    set PYTHONPATH=%WORKSPACE%
+                                    dir
+                                    "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
+                                '''
+                            }
+                        }
+                        
             }
         }
+            
+        
+      
     }
 }
