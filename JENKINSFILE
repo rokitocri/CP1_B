@@ -13,7 +13,7 @@ pipeline {
         stage('cobertura') {
             steps {
                 bat '''
-                coverage run --branch --source:=app --omit=app\\__init__.py,app\\api.py --exit-zero -m pytest test\\unit   
+                coverage run --branch --source:=app --omit=app\\__init__.py,app\\api.py --exit-zero -m pytest --junitxml=result-unit.xml test\\unit   
                 coverage xml
                 
                 '''
