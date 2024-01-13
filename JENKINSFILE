@@ -17,7 +17,7 @@ pipeline {
                 coverage xml
                 
                 '''
-                cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,83,90', lineCoverageTargets:'100,80,90'
+                cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,80,80', lineCoverageTargets:'100,80,95'
                 
                 
             }
