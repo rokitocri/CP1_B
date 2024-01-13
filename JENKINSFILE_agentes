@@ -1,95 +1,161 @@
 pipeline {
     agent {label 'principal'}
-
+    
     stages {
+
+    
         stage('Get Code') {
-        
             steps {
+                
                 // Obtener código del repo
-                git 'https://github.com/rokitocri/CP1_A.git'
-                stash includes: '*', name: 'repositorio'
-                stash includes: '*', name: 'repositorio2'
-
-            }
-        }
-
-        stage('Build') {
-        
-            steps {
-                echo 'Eyyy, esto es Python. No hay que compilar nada!!!'
-                echo env.WORKSPACE
-                bat 'dir'
-            }
-        }
-
-            stage('test') {
+                git 'https://github.com/rokitocri/CP1_B.git'
+                stash includes: '*', name: 'repo1'
+                stash includes: '*', name: 'repo2'
                 
-            
-                parallel {
+            }
+        }
+        stage('Paralela') {
+                 parallel { 
+                        stage ('Perfomance') {
+                                    agent {label 'agente1'}
                     
-                
-                    stage('Unit') {
-                               agent {label 'agente1'}
-            
-                                steps {
-                                        unstash 'repositorio'
-                                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                                        bat '''
-                                            set PYTHONPATH=%WORKSPACE%
-                                            "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-unit.xml test\\unit
-                                        '''
-                                       stash includes: 'result-unit.xml', name: 'resultado1'
-                                       
-                                
+                                            steps {
+                                               unstash 'repo1'
+                                               bat '''
+                                               set FLASK_APP=app\\api.py
+                                               set FLASK_ENV=development
+                                               start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
+                                               
+                                               "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
+                                               '''
+                                               perfReport sourceDataFiles: 'flask.jtl'
+                                               bat 'ping 127.0.0.1 -n 5 > nul' // Espera aproximadamente 10 segundos
+                                            
+                                            }
+                                        }
                                         
+                        stage('Rest') {
+                                    agent {label 'agente2'}
+                                            
+                                            steps {
+                                                 
+                                                unstash 'repo2'
+                                                // Iniciar WireMock en otro comando
+                                                    bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
+                                                 
+                                                // Esperar un tiempo para permitir que Flask y WireMock se inicien
+                                               
+                                                
+                                                // Ejecutar pruebas de REST una vez que los servicios estén activos
+                                                bat '''
+                                                    echo %WORKSPACE%
+                                                    set PYTHONPATH=%WORKSPACE%
+                                                    dir
+                                                    "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
+                                                '''
+                                                 powershell '''
+                                                                    # Obtener el ID del proceso de Flask
+                                                                    $A = Get-Process flask
+                                                                    $id = $A.Id
+                                                
+                                                                    # Detener el proceso usando Stop-Process
+                                                                    Stop-Process -Id $id -Force
+                                                                '''
+                                               powershell '''
+                                                            # Obtener el ID del proceso que utiliza el puerto 9090
+                                                            $A = Get-Process -Id (Get-NetTCPConnection -LocalPort 9090).OwningProcess
+                                                            $id = $A.Id
+                                        
+                                                            # Detener el proceso usando Stop-Process
+                                                            Stop-Process -Id $id -Force
+                                                        '''
+                                                } 
+                                            }
+                    
+                 }
+            } 
+            
+        
+           
+stage('Paralela2') {
+            parallel { 
+                    
+                    
+                stage('cobertura') {
+                            agent {label 'agente2'}    
+                                    steps {
+                                       
+                                        bat '''
+                                        coverage run --branch --source=app --omit=app\\__init__.py,app\\api.py -m pytest --junitxml=result-unit.xml test\\unit
+                                        coverage xml
+                                        
+                                        '''
+                                        stash includes: 'result*.xml', name: 'unit_test_result'
+                                        cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,80,90', lineCoverageTargets:'100,80,95', failUnstable: 'False'
+                                        
+                                           
+                                        
+                                    }
+                                } 
+                          
+                            
+                    stage('Static'){
+                                 agent {label 'agente2'}       
+                                    steps {
+                                        
+                                        bat '''
+                                            "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flake8"  --exit-zero  --format=pylint app > flake8.out
+                                        '''
+                                        recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates : [[threshold: 25, type: 'TOTAL', unstable: true], [threshold: 30, type: 'TOTAL', unstable: false]]
+                                        
+                                      
                                     }
                                 }
-                            }
-                    
-                    stage('Rest') {
-                            agent {label 'agente2'}
-            
+                    stage('security'){
+                                    agent {label 'agente2'}    
                                     steps {
-                                            unstash 'repositorio2'
-                                            // Iniciar Flask en segundo plano
-                                                bat '''
-                                                    set FLASK_APP=app\\api.py
-                                                    set FLASK_ENV=development
-                                                    start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
-                                                '''
-                                        
-                                                // Iniciar WireMock en otro comando
-                                                bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
-                                            
-                                            
-                                            // Esperar un tiempo para permitir que Flask y WireMock se inicien
-                                            bat 'ping 127.0.0.1 -n 11 > nul' // Espera aproximadamente 10 segundos
-                                            
-                                            // Ejecutar pruebas de REST una vez que los servicios estén activos
+                                        bat '''
+                                         "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\bandit" --exit-zero -r . -f custom -o bandit.out --severity-level medium --msg-template "{abspath}:{line}: [{test_id}, {severity}] {msg}"
+                                         '''
+                                        recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true],[threshold: 3, type: 'TOTAL', unstable: false]]
                                          
-                                            bat '''
-                                                echo %WORKSPACE%
-                                                set PYTHONPATH=%WORKSPACE%
-                                                dir
-                                                "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
-                                            '''
-                                            stash includes: 'result-rest.xml', name: 'resultado2'
+                                    }
+                                }            
+                        
+                } 
+            }
             
+                    stage('Unit') {
+                                    agent {label 'agente2'}        
+                                        steps {
+                                            unstash 'unit_test_result'
+                                            junit 'result*.xml'
+                                             
                                         }
                                     }
-                }              
-            }
-                
-            
-        
-        stage('Results') {
-            agent { label 'agente2' }
+             
+                     
+        stage ('cleanA2'){
+            agent {label 'agente2'}
             steps {
-                unstash 'resultado1'
-                unstash 'resultado2'
-                junit 'result*.xml'
+                
+                
+                
+                cleanWs()
+                
+            }
+        }     
+        
+        stage ('cleanA1'){
+            agent {label 'agente1'}
+            steps {
+                cleanWs()
                 
             }
         }
-    }
-}
+
+             
+                }
+            }
+    
+  
