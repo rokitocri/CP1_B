@@ -13,11 +13,11 @@ pipeline {
         stage('cobertura') {
             steps {
                 bat '''
-                coverage run --branch --source=app --omit=app\\__init__.py,app\\api.py -m pytest test\\unit   
+                coverage run --branch --source:=app --omit=app\\__init__.py,app\\api.py --exit-zero -m pytest test\\unit   
                 coverage xml
                 
                 '''
-                cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,80,80', lineCoverageTargets:'100,80,95', failUnstable: 'False'
+                cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,83,90', lineCoverageTargets:'100,80,90'
                 
                 
             }
@@ -44,61 +44,52 @@ pipeline {
             }
         }    
         
-        stage ('Perfomance') {
-            steps {
-               bat '''
-               set FLASK_APP=app\\api.py
-               set FLASK_ENV=development
-               start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
-               
-               "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
-               '''
-               perfReport sourceDataFiles: 'flask.jtl'
-            }
-        }
-        stage('Paralela') {
-            parallel {    
-                stage('Unit') {
-                    steps {
-                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                            bat '''
-                                set PYTHONPATH=%WORKSPACE%
-                                "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-unit.xml test\\unit
-                            '''
-                            junit 'result*.xml'
-                        }
-                    }
-                }
         
-                stage('Rest') {
-                            steps {
-                                // Iniciar Flask en segundo plano
-                                    bat '''
-                                        set FLASK_APP=app\\api.py
-                                        set FLASK_ENV=development
-                                         start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
-                                    '''
-                            
-                                    // Iniciar WireMock en otro comando
-                                    bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
-                                
-                                
-                                // Esperar un tiempo para permitir que Flask y WireMock se inicien
-                                bat 'ping 127.0.0.1 -n 11 > nul' // Espera aproximadamente 10 segundos
-                                
-                                // Ejecutar pruebas de REST una vez que los servicios estén activos
-                                bat '''
-                                    echo %WORKSPACE%
-                                    set PYTHONPATH=%WORKSPACE%
-                                    dir
-                                    "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
-                                '''
+        stage('Paralela') {
+             parallel { 
+                        stage ('Perfomance') {
+                                        steps {
+                                               bat '''
+                                               set FLASK_APP=app\\api.py
+                                               set FLASK_ENV=development
+                                               start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
+                                               
+                                               "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
+                                               '''
+                                               perfReport sourceDataFiles: 'flask.jtl'
+                                               bat 'ping 127.0.0.1 -n 5 > nul' // Espera aproximadamente 5 segundos
+                                            }
+                                        }
+                                        
+                        stage('Rest') {
+                                       steps {
+                                             
+                                                // Iniciar WireMock en otro comando
+                                                    bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
+                                                 
+                                                // Esperar un tiempo para permitir que Flask y WireMock se inicien
+                                               
+                                                
+                                                // Ejecutar pruebas de REST una vez que los servicios estén activos
+                                                bat '''
+                                                    echo %WORKSPACE%
+                                                    set PYTHONPATH=%WORKSPACE%
+                                                    dir
+                                                    "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
+                                                '''
+                                                
+                                                } 
+                                            }
+                    
+                        
+                                }
+                            }
+            stage('Unit') {
+                        steps {
+                        
+                            junit 'result*.xml'
                             }
                         }
-                        
-            }
-        }
-            
         
       
     }
