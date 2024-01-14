@@ -92,7 +92,7 @@ pipeline {
                                         bat '''
                                         coverage run --source=app --omit=app\\__init__.py,app\\api.py -m pytest --junitxml=result-unit.xml test\\unit
                                        
-                                        coverage run --branch --source=app --omit=app\\__init__.py,app\\api.py -m pytest --junitxml=result-unit.xml test\\unit
+                                        coverage run --branch --source=app --omit=app\\__init__.py,app\\api.py -m test\\unit
                                         coverage xml
                                         whoami
                                         hostname 
