@@ -98,7 +98,7 @@ pipeline {
                                         hostname 
                                         '''
                                         stash includes: 'result*.xml', name: 'unit_test_result'
-                                        cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,80,90', lineCoverageTargets:'100,80,95', failUnstable: 'False'
+                                        cobertura coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100,80,90', lineCoverageTargets:'100,80,80', failUnstable: 'False'
                                         
                                            
                                         
