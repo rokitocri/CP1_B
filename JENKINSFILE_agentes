@@ -53,22 +53,7 @@ pipeline {
                                                     dir
                                                     "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
                                                 '''
-                                                 powershell '''
-                                                                    # Obtener el ID del proceso de Flask
-                                                                    $A = Get-Process flask
-                                                                    $id = $A.Id
-                                                
-                                                                    # Detener el proceso usando Stop-Process
-                                                                    Stop-Process -Id $id -Force
-                                                                '''
-                                               powershell '''
-                                                            # Obtener el ID del proceso que utiliza el puerto 9090
-                                                            $A = Get-Process -Id (Get-NetTCPConnection -LocalPort 9090).OwningProcess
-                                                            $id = $A.Id
-                                        
-                                                            # Detener el proceso usando Stop-Process
-                                                            Stop-Process -Id $id -Force
-                                                        '''
+                                                 
                                                 } 
                                             }
                     
