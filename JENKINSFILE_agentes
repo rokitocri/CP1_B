@@ -15,69 +15,69 @@ pipeline {
             }
         }
         stage('Paralela') {
-                 parallel { 
-                        stage ('Perfomance') {
-                                    agent {label 'agente1'}
-                    
-                                            steps {
-                                               unstash 'repo1'
-                                               bat '''
-                                               set FLASK_APP=app\\api.py
-                                               set FLASK_ENV=development
-                                               start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
-                                               
-                                               "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
-                                               '''
-                                               perfReport sourceDataFiles: 'flask.jtl'
-                                               bat 'ping 127.0.0.1 -n 5 > nul' // Espera aproximadamente 10 segundos
-                                            
-                                            }
-                                        }
+            parallel { 
+                stage ('Perfomance') {
+                            agent {label 'agente1'}
+            
+                                    steps {
+                                        unstash 'repo1'
+                                        bat '''
+                                        set FLASK_APP=app\\api.py
+                                        set FLASK_ENV=development
+                                        start /B cmd /c "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flask.exe" run
                                         
-                        stage('Rest') {
-                                    agent {label 'agente2'}
+                                        "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
+                                        '''
+                                        perfReport sourceDataFiles: 'flask.jtl'
+                                        bat 'ping 127.0.0.1 -n 5 > nul' // Espera aproximadamente 10 segundos
+                                    
+                                    }
+                                }
+                                        
+                stage('Rest') {
+                            agent {label 'agente2'}
+                                    
+                                    steps {
                                             
-                                            steps {
-                                                 
-                                                unstash 'repo2'
-                                                // Iniciar WireMock en otro comando
-                                                    bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
-                                                 
-                                                // Esperar un tiempo para permitir que Flask y WireMock se inicien
-                                               
-                                                
-                                                // Ejecutar pruebas de REST una vez que los servicios estén activos
-                                                bat '''
-                                                    echo %WORKSPACE%
-                                                    set PYTHONPATH=%WORKSPACE%
-                                                    dir
-                                                    "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
-                                                '''
-                                                 powershell '''
-                                                                    # Obtener el ID del proceso de Flask
-                                                                    $A = Get-Process flask
-                                                                    $id = $A.Id
-                                                
-                                                                    # Detener el proceso usando Stop-Process
-                                                                    Stop-Process -Id $id -Force
-                                                                '''
-                                               powershell '''
-                                                            # Obtener el ID del proceso que utiliza el puerto 9090
-                                                            $A = Get-Process -Id (Get-NetTCPConnection -LocalPort 9090).OwningProcess
+                                        unstash 'repo2'
+                                        // Iniciar WireMock en otro comando
+                                            bat 'start /B java -jar C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock\\wiremock-standalone-3.3.1.jar --port 9090 --root-dir C:\\Users\\Cristina\\Documents\\Master_Devops\\WireMock'
+                                            
+                                        // Esperar un tiempo para permitir que Flask y WireMock se inicien
+                                        
+                                        
+                                        // Ejecutar pruebas de REST una vez que los servicios estén activos
+                                        bat '''
+                                            echo %WORKSPACE%
+                                            set PYTHONPATH=%WORKSPACE%
+                                            dir
+                                            "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\pytest" --junitxml=result-rest.xml test\\rest
+                                        '''
+                                            powershell '''
+                                                            # Obtener el ID del proceso de Flask
+                                                            $A = Get-Process flask
                                                             $id = $A.Id
                                         
                                                             # Detener el proceso usando Stop-Process
                                                             Stop-Process -Id $id -Force
                                                         '''
-                                                } 
-                                            }
+                                        powershell '''
+                                                    # Obtener el ID del proceso que utiliza el puerto 9090
+                                                    $A = Get-Process -Id (Get-NetTCPConnection -LocalPort 9090).OwningProcess
+                                                    $id = $A.Id
+                                
+                                                    # Detener el proceso usando Stop-Process
+                                                    Stop-Process -Id $id -Force
+                                                '''
+                                        } 
+                                    }
                     
                  }
             } 
             
         
            
-stage('Paralela2') {
+        stage('Paralela2') {
             parallel { 
                     
                     
@@ -99,15 +99,15 @@ stage('Paralela2') {
                                 } 
                           
                             
-                    stage('Static'){
-                                 agent {label 'agente2'}       
-                                    steps {
-                                        
-                                        bat '''
-                                            "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flake8"  --exit-zero  --format=pylint app > flake8.out
-                                        '''
-                                        recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates : [[threshold: 25, type: 'TOTAL', unstable: true], [threshold: 30, type: 'TOTAL', unstable: false]]
-                                        
+                stage('Static'){
+                                agent {label 'agente2'}       
+                                steps {
+                                    
+                                    bat '''
+                                        "C:\\Users\\Cristina\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\flake8"  --exit-zero  --format=pylint app > flake8.out
+                                    '''
+                                    recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates : [[threshold: 25, type: 'TOTAL', unstable: true], [threshold: 30, type: 'TOTAL', unstable: false]]
+                                    
                                       
                                     }
                                 }
@@ -125,16 +125,16 @@ stage('Paralela2') {
                 } 
             }
             
-                    stage('Unit') {
-                                    agent {label 'agente2'}        
-                                        steps {
-                                            unstash 'unit_test_result'
-                                            junit 'result*.xml'
-                                             
-                                        }
-                                    }
-             
-                     
+        stage('Unit') {
+                        agent {label 'agente2'}        
+                            steps {
+                                unstash 'unit_test_result'
+                                junit 'result*.xml'
+                                    
+                            }
+                        }
+    
+                        
         stage ('cleanA2'){
             agent {label 'agente2'}
             steps {
@@ -155,5 +155,5 @@ stage('Paralela2') {
         }
 
              
-                }
-            }
+    }
+}
