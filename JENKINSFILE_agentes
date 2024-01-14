@@ -120,24 +120,7 @@ stage('Paralela2') {
                                     }
              
                      
-        stage ('cleanA2'){
-            agent {label 'agente2'}
-            steps {
-                
-                
-                
-                cleanWs()
-                
-            }
-        }     
         
-        stage ('cleanA1'){
-            agent {label 'agente1'}
-            steps {
-                cleanWs()
-                
-            }
-        }
 
              
                 }
